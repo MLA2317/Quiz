@@ -2,7 +2,25 @@ from django.contrib import admin
 from .models import Question, Category, Option, Result
 
 
-admin.site.register(Category),
-admin.site.register(Result),
-admin.site.register(Question),
-admin.site.register(Option)
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title')
+
+
+class OptionInlineAdmin(admin.TabularInline):
+    model = Option
+    readonly_fields = ('id', )
+    extra = 0
+
+
+@admin.register(Question)
+class QuestionsAdmin(admin.ModelAdmin):
+    inlines = [OptionInlineAdmin]
+    list_display = ('id', 'category', 'level', 'question')
+
+@admin.register(Result)
+class ResultAdmin(admin.ModelAdmin):
+    list_display = ('id', 'author', 'categories', 'get_question', 'results')
+
+    def get_question(self, obj):
+        return ", ".join([question.question for question in obj.questions.all()])

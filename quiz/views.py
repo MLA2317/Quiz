@@ -1,4 +1,4 @@
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Subquery, Q
 from django.http import HttpResponseNotFound
 from django.utils import timezone
 from rest_framework.response import Response
@@ -28,9 +28,13 @@ class QuestionAPIView(generics.ListAPIView):  # Questionlani korish uchun
         category_id = self.kwargs.get('category_id')
         print(category_id)
         print(qs)
-        # question_id = self.kwargs['question_id']
         if category_id:
-            qs = qs.filter(category_id=category_id)
+            answered_questions = Result.objects.filter(author=self.request.user, categories_id=category_id).values('questions')
+            qs = qs.filter(category_id=category_id).exclude(id__in=Subquery(answered_questions)).order_by('?')[:5]
+            # answered_questions = Result.objects.filter(author=self.request.user, categories_id=category_id,
+            #                                            options__is_true=False).values('questions')
+            # qs = qs.filter(Q(category_id=category_id) |
+            #                Q(id__in=Subquery(answered_questions))).order_by('?')[:5]
             print(qs)
             return qs
         return HttpResponseNotFound('Not found!')
@@ -59,30 +63,47 @@ class AnswersAPIView(APIView):  # javoblarini jonatish uchun
         categories_id = self.request.data.get('category_id')
         questions = self.request.data.get('questions')
         print(questions)
-        try:
+        try:  # category ni id sini tekshiradi
             Category.objects.get(id=categories_id)
         except Category.DoesNotExist:
             return Response("Category not found")
         result = Result.objects.create(author_id=account.id, categories_id=categories_id) # author_id bu modeldagi author
         print(result)
+        correct_answer = []
+        incorrect_answer = []
         for i in questions:
+            print(i)
             question = int(i.get('question_id'))
             option = int(i.get('option_id'))
-            try:
+            try: # question_id bn option_id ni tekshiradi
                 question_id = Question.objects.get(id=question)
                 option_id = Option.objects.get(id=option)
             except (Question.DoesNotExist, Option.DoesNotExist):
                 continue
             answer = Question.objects.filter(options__is_true=True, category_id=categories_id, options=option_id, question=question_id)
             if answer:
-                count += 20
-            result.questions.add(question)
+                correct_answer.append((f"Question: {question_id.question}", f"Answers: {option_id.option} --> True"))
 
-            print(result)
+                count += 100 // len(questions)
+                print(count)
+            else:
+                incorrect_answer.append((f"Question: {question_id.question}", f"Answers: {option_id.option} --> Wrong"))
+            result.questions.add(question)
         result.results = count
         print(result)
         result.save()
-        return Response("result saved")
+        response_data = {
+            'author': account.id,
+            'category': categories_id,
+            'result_percentage': count,
+            'correct_answer': correct_answer,
+            'incorrect_answer': incorrect_answer
+        }
+        return Response({'response_data': response_data})
+        # return Response("result saved")
+        # return Response({"Your results": result.results})
+        # return Response(data=result)
+
 
 """
  {
@@ -93,20 +114,20 @@ class AnswersAPIView(APIView):  # javoblarini jonatish uchun
           "option_id": 1
         },
         {
-          "question_id": 2,
-          "option_id": 6
+          "question_id": 2, 
+          "option_id": 5
+        },
+        {
+          "question_id": 3,
+          "option_id": 9
         },
         {
           "question_id": 4,
-          "option_id": 14
+          "option_id": 13
         },
         {
           "question_id": 5,
           "option_id": 17
-        },
-        {
-          "question_id": 6,
-          "option_id": 21
         }
       ]
     }
@@ -222,10 +243,20 @@ class AverageStaticForStudent(APIView):  # Student statiskasi bo'yciha
         for author in authors:
             average_result_author = Result.get_average_authors(author)
             serializer_author = MyProfileSerializer(author).data
-            author_results.append({
-                "author": serializer_author,
-                "average_result_author": average_result_author
-            })
-        return Response(author_results)
+            if average_result_author is not None:
+                round_average = round(average_result_author, 2)
+                author_results.append({"author": serializer_author, 'average': round_average})
+            else:
+                author_results.append({"author": serializer_author, 'average': average_result_author})
+        return Response({'result of student': author_results})
+
+        # for category in categories:
+        #     average = Result.get_average_results(category)
+        #     if average is not None:
+        #         round_average = round(average, 2)
+        #         cat_results.append({'category': category.title, 'average': round_average})
+        #     else:
+        #         cat_results.append({'category': category.title, 'average': average})
+        # return Response({'results': cat_results})
 
 

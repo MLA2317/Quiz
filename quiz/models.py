@@ -51,8 +51,8 @@ class Option(models.Model):
 class Result(TimeStamp):
     author = models.ForeignKey(Account, on_delete=models.CASCADE)
     categories = models.ForeignKey(Category, verbose_name='category', on_delete=models.CASCADE)
-    questions = models.ManyToManyField(Question, null=True, blank=True)
-    options = models.ManyToManyField(Option, null=True, blank=True)
+    questions = models.ManyToManyField(Question)
+    options = models.ManyToManyField(Option)
     results = models.FloatField(null=True, blank=True)
 
     def __str__(self):

@@ -1,6 +1,6 @@
-from django.db import models
+from django.db import models, IntegrityError
 from account.models import Account
-from django.db.models import Avg
+from django.db.models import Avg, UniqueConstraint, Q
 
 
 class TimeStamp(models.Model):
@@ -44,13 +44,28 @@ class Option(models.Model):
     option = models.CharField(max_length=221)
     is_true = models.BooleanField(default=False)
 
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=['question'],
+                condition=Q(is_true=True),
+                name="correct_option"
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        try:
+            super().save(*args, **kwargs)
+        except IntegrityError:
+            raise IntegrityError('Only one option can be marked as correct for a question')
+
     def __str__(self):
-        return self.option
+        return f"{self.option}'s"
 
 
 class Result(TimeStamp):
     author = models.ForeignKey(Account, on_delete=models.CASCADE)
-    categories = models.ForeignKey(Category, verbose_name='category', on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, verbose_name='category', on_delete=models.CASCADE)
     questions = models.ManyToManyField(Question)
     options = models.ManyToManyField(Option)
     results = models.FloatField(null=True, blank=True)
@@ -60,7 +75,7 @@ class Result(TimeStamp):
 
     @staticmethod
     def get_average_results(category):
-        average = Result.objects.filter(categories=category).aggregate(avg_results=Avg('results'))
+        average = Result.objects.filter(category=category).aggregate(avg_results=Avg('results'))
         return average['avg_results']
 
     @staticmethod

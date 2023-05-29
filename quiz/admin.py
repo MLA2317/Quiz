@@ -20,7 +20,7 @@ class QuestionsAdmin(admin.ModelAdmin):
 
 @admin.register(Result)
 class ResultAdmin(admin.ModelAdmin):
-    list_display = ('id', 'author', 'categories', 'get_question', 'results')
+    list_display = ('id', 'author', 'category', 'get_question', 'results')
 
     def get_question(self, obj):
         return ", ".join([question.question for question in obj.questions.all()])
